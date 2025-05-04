@@ -3,7 +3,7 @@ import boto3
 from aws_audit import check_s3_encryption, check_cloudtrail_enabled, check_mfa_on_root
 from botocore.exceptions import ClientError
 
-st.set_page_config(page_title="AWS Cloud Security Audit", layout="centered")
+st.set_page_config(page_title="AWS Cloud Security Checklist", layout="centered")
 
 st.title("🔐 AWS Cloud Security Checklist")
 
@@ -22,17 +22,39 @@ if submitted:
         )
         st.success("✅ Connected to AWS")
 
-        st.header("1️⃣ S3 Bucket Encryption")
-        for name, status, msg in check_s3_encryption(session):
-            st.write(f"**{name}**: {'✅' if status else '❌'} — {msg}")
+        total_score = 0
+        max_score = 30  # 10 pts per check
 
-        st.header("2️⃣ CloudTrail Logging")
+        st.header("📦 S3 Bucket Encryption (10 pts)")
+        s3_results = check_s3_encryption(session)
+        for name, status, msg in s3_results:
+            st.write(f"**{name}**: {'✅' if status else '❌'} — {msg}")
+            if status:
+                total_score += 3  # partial points per encrypted bucket
+
+        st.header("📜 CloudTrail Logging (10 pts)")
         name, status, msg = check_cloudtrail_enabled(session)
         st.write(f"**{name}**: {'✅' if status else '❌'} — {msg}")
+        if status:
+            total_score += 10
 
-        st.header("3️⃣ MFA on Root Account")
+        st.header("🔐 MFA on Root Account (10 pts)")
         name, status, msg = check_mfa_on_root(session)
         st.write(f"**{name}**: {'✅' if status else '❌'} — {msg}")
+        if status:
+            total_score += 10
+
+        # Calculate risk level
+        percent = (total_score / max_score) * 100
+        st.subheader("📊 Security Score Summary")
+        st.write(f"**Score:** {total_score}/{max_score} ({percent:.0f}%)")
+
+        if percent >= 80:
+            st.success("🟢 Low Risk — Your AWS setup looks strong!")
+        elif percent >= 50:
+            st.warning("🟡 Moderate Risk — Some issues need fixing.")
+        else:
+            st.error("🔴 High Risk — Several security gaps found.")
 
     except ClientError as e:
         st.error(f"Connection error: {e}")
