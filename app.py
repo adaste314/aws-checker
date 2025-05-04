@@ -2,7 +2,6 @@ import streamlit as st
 import boto3
 import os
 import matplotlib.pyplot as plt
-from io import StringIO
 from datetime import datetime
 from botocore.exceptions import ClientError
 from aws_audit import (
@@ -11,7 +10,9 @@ from aws_audit import (
     check_mfa_on_root,
     check_s3_public_access,
     check_iam_admin_users,
-    check_open_security_groups
+    check_open_security_groups,
+    check_unused_iam_keys,
+    check_public_eips
 )
 
 st.set_page_config(page_title="AWS Cloud Security Checklist", layout="centered")
@@ -37,39 +38,40 @@ if submitted:
         st.success("✅ Connected to AWS")
 
         total_score = 0
-        max_score = 45
+        max_score = 63
         passed, failed = 0, 0
         report_lines = [f"# AWS Security Audit Report\n", f"**Scan Time**: {datetime.utcnow()} UTC\n\n"]
 
         def display_check(title, results, points, total_score, passed, failed, report_lines):
             st.header(title)
-            for name, status, msg, fix, link in results:
+            for name, status, msg, fix, link, cli in results:
                 st.write(f"**{name}**: {'✅' if status else '❌'} — {msg}")
+                if not status:
+                    st.markdown(f"- 🛠️ **Fix**: {fix}")
+                    st.markdown(f"- 📘 [Documentation]({link})")
+                    st.code(cli, language="bash")
+                    report_lines.append(f"## {name}\n❌ {msg}\n\n**Fix**: {fix}\n[Docs]({link})\nCLI: `{cli}`\n")
                 if status:
                     total_score += points
                     passed += 1
                 else:
                     failed += 1
-                    report_lines.append(f"## {name}\n❌ {msg}\n\n**Fix**: {fix}\n[Read More]({link})\n")
             return total_score, passed, failed, report_lines
 
-        total_score, passed, failed, report_lines = display_check(
-            "1️⃣ S3 Bucket Encryption", check_s3_encryption(session), 3, total_score, passed, failed, report_lines)
+        checks = [
+            ("1️⃣ S3 Bucket Encryption", check_s3_encryption(session), 3),
+            ("2️⃣ CloudTrail Logging", [check_cloudtrail_enabled(session)], 10),
+            ("3️⃣ MFA on Root Account", [check_mfa_on_root(session)], 10),
+            ("4️⃣ Public S3 Access", check_s3_public_access(session), 3),
+            ("5️⃣ IAM Users with Admin Access", check_iam_admin_users(session), 3),
+            ("6️⃣ Security Groups Open to the World", check_open_security_groups(session), 3),
+            ("7️⃣ Unused IAM Access Keys", check_unused_iam_keys(session), 3),
+            ("8️⃣ Public Elastic IPs", check_public_eips(session), 3)
+        ]
 
-        total_score, passed, failed, report_lines = display_check(
-            "2️⃣ CloudTrail Logging", [check_cloudtrail_enabled(session)], 10, total_score, passed, failed, report_lines)
-
-        total_score, passed, failed, report_lines = display_check(
-            "3️⃣ MFA on Root Account", [check_mfa_on_root(session)], 10, total_score, passed, failed, report_lines)
-
-        total_score, passed, failed, report_lines = display_check(
-            "4️⃣ Public S3 Access", check_s3_public_access(session), 3, total_score, passed, failed, report_lines)
-
-        total_score, passed, failed, report_lines = display_check(
-            "5️⃣ IAM Users with Admin Access", check_iam_admin_users(session), 3, total_score, passed, failed, report_lines)
-
-        total_score, passed, failed, report_lines = display_check(
-            "6️⃣ Security Groups Open to the World", check_open_security_groups(session), 3, total_score, passed, failed, report_lines)
+        for title, result, pts in checks:
+            total_score, passed, failed, report_lines = display_check(
+                title, result, pts, total_score, passed, failed, report_lines)
 
         percent = (total_score / max_score) * 100
         st.subheader("📊 Security Score Summary")
@@ -82,13 +84,11 @@ if submitted:
         else:
             st.error("🔴 High Risk — Several security gaps found.")
 
-        # Pie chart
         fig, ax = plt.subplots()
         ax.pie([passed, failed], labels=['✅ Secure', '❌ Issues'], autopct='%1.1f%%', startangle=90, colors=['green', 'red'])
         ax.axis('equal')
         st.pyplot(fig)
 
-        # Report download
         report_str = "\n".join(report_lines)
         st.download_button("📥 Download Audit Report", report_str, file_name="aws_audit.md")
 
