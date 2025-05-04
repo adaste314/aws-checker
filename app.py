@@ -41,8 +41,7 @@ if submitted:
         passed, failed = 0, 0
         report_lines = [f"# AWS Security Audit Report\n", f"**Scan Time**: {datetime.utcnow()} UTC\n\n"]
 
-        def display_check(title, results, points=3):
-            nonlocal total_score, passed, failed, report_lines
+        def display_check(title, results, points, total_score, passed, failed, report_lines):
             st.header(title)
             for name, status, msg, fix, link in results:
                 st.write(f"**{name}**: {'✅' if status else '❌'} — {msg}")
@@ -52,13 +51,25 @@ if submitted:
                 else:
                     failed += 1
                     report_lines.append(f"## {name}\n❌ {msg}\n\n**Fix**: {fix}\n[Read More]({link})\n")
+            return total_score, passed, failed, report_lines
 
-        display_check("1️⃣ S3 Bucket Encryption", check_s3_encryption(session))
-        display_check("2️⃣ CloudTrail Logging", [check_cloudtrail_enabled(session)], points=10)
-        display_check("3️⃣ MFA on Root Account", [check_mfa_on_root(session)], points=10)
-        display_check("4️⃣ Public S3 Access", check_s3_public_access(session))
-        display_check("5️⃣ IAM Users with Admin Access", check_iam_admin_users(session))
-        display_check("6️⃣ Security Groups Open to the World", check_open_security_groups(session))
+        total_score, passed, failed, report_lines = display_check(
+            "1️⃣ S3 Bucket Encryption", check_s3_encryption(session), 3, total_score, passed, failed, report_lines)
+
+        total_score, passed, failed, report_lines = display_check(
+            "2️⃣ CloudTrail Logging", [check_cloudtrail_enabled(session)], 10, total_score, passed, failed, report_lines)
+
+        total_score, passed, failed, report_lines = display_check(
+            "3️⃣ MFA on Root Account", [check_mfa_on_root(session)], 10, total_score, passed, failed, report_lines)
+
+        total_score, passed, failed, report_lines = display_check(
+            "4️⃣ Public S3 Access", check_s3_public_access(session), 3, total_score, passed, failed, report_lines)
+
+        total_score, passed, failed, report_lines = display_check(
+            "5️⃣ IAM Users with Admin Access", check_iam_admin_users(session), 3, total_score, passed, failed, report_lines)
+
+        total_score, passed, failed, report_lines = display_check(
+            "6️⃣ Security Groups Open to the World", check_open_security_groups(session), 3, total_score, passed, failed, report_lines)
 
         percent = (total_score / max_score) * 100
         st.subheader("📊 Security Score Summary")
