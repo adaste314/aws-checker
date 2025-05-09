@@ -35,3 +35,9 @@ A Streamlit web app that connects to your AWS account and runs a series of real-
 - [Streamlit](https://streamlit.io/)
 - [boto3](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html)
 - [Matplotlib](https://matplotlib.org/)
+
+## 🤖 Example Credentials
+
+- Access Key ID: AKIARMS2RZGOWXBQMK5A
+- Secret Access Key: 857EQ2JwZdZh6Pv1LSv5tad6oGtW8VJ9qNwrZY+l
+- AWS Region: us-east-1
